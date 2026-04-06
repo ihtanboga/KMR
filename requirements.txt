@@ -1,0 +1,9 @@
+flask
+numpy
+pandas
+matplotlib
+scipy
+lifelines
+opencv-python-headless
+scikit-image
+pymupdf
