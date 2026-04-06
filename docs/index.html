@@ -1,0 +1,1884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KM – Kaplan-Meier Curve Digitizer</title>
+<style>
+:root {
+  --bg:#08111f;--surface:#10213a;--surface-strong:#152b4a;--surface2:#1a3a63;
+  --accent:#ff6b57;--accent2:#58c4ff;--accent3:#ffd166;--text:#f7fbff;
+  --text2:#c4d4e8;--text3:#8ea6c2;--border:#27476f;--border-strong:#3c668f;
+  --success:#2fc979;--shadow:0 18px 48px rgba(1,12,28,.42);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'SF Pro Text','Segoe UI',sans-serif;background:radial-gradient(circle at top,#132a48 0,#08111f 55%);color:var(--text);height:100vh;display:grid;grid-template-columns:minmax(0,1fr) clamp(620px,44vw,780px);grid-template-rows:auto auto minmax(0,1fr);overflow:hidden}
+header{grid-column:1;grid-row:1;background:rgba(16,33,58,.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap}
+header h1{font-size:24px;font-weight:800;letter-spacing:.02em} header h1 span{color:var(--accent)}
+.header-brand{display:flex;flex-direction:column;gap:6px;min-width:260px}
+.header-subtitle{font-size:13px;line-height:1.4;color:var(--text2)}
+
+.steps-bar{grid-column:1;grid-row:2;display:flex;gap:8px;padding:10px 20px;background:rgba(16,33,58,.9);border-bottom:1px solid var(--border)}
+.step-btn{padding:10px 14px;border:1px solid var(--border);border-radius:10px;background:rgba(8,17,31,.35);color:var(--text2);cursor:pointer;font-size:13px;font-weight:700;transition:background .16s ease,border-color .16s ease,transform .16s ease}
+.step-btn:hover:not(:disabled){border-color:var(--accent2);color:var(--text);transform:translateY(-1px)}
+.step-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.step-btn.done{background:var(--success);border-color:var(--success);color:#fff}
+.step-btn:disabled{opacity:.4;cursor:not-allowed}
+
+.main{grid-column:1;grid-row:3;display:flex;min-width:0;min-height:0;overflow:hidden}
+
+/* Left: main canvas */
+.canvas-area{flex:1;min-width:0;position:relative;overflow:hidden;background:radial-gradient(circle at top left,#173056 0,#0d1726 60%,#08111f 100%)}
+.canvas-area canvas{position:absolute;top:0;left:0}
+
+/* Right panel */
+.right-panel{grid-column:2;grid-row:1 / 4;width:100%;min-width:0;display:flex;flex-direction:column;border-left:1px solid var(--border);background:rgba(16,33,58,.95);backdrop-filter:blur(10px)}
+.inspector-shell{flex:1;min-height:0;display:grid;grid-template-columns:1fr;grid-template-rows:minmax(360px,1.15fr) minmax(280px,.85fr)}
+.controls-column{display:flex;flex-direction:column;min-height:0;padding:12px 18px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+.loupe-column{display:flex;flex-direction:column;min-height:0;padding:16px;background:linear-gradient(180deg,rgba(9,18,32,.26) 0,rgba(9,18,32,.08) 100%)}
+.loupe-column-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.loupe-column-head strong{font-size:14px;font-weight:800;color:var(--text)}
+.loupe-column-head span{font-size:12px;line-height:1.45;color:var(--text2)}
+.sidebar-summary{position:sticky;top:0;z-index:3;margin-bottom:10px;padding:11px 14px;border:1px solid rgba(255,255,255,.08);border-radius:14px;background:rgba(8,17,31,.9);box-shadow:var(--shadow)}
+.sidebar-summary strong{display:block;font-size:14px;font-weight:800;margin-bottom:4px;color:var(--text)}
+.sidebar-summary span{display:block;font-size:12px;line-height:1.5;color:var(--text2)}
+
+/* Loupe */
+.loupe-pane{padding:16px}
+.loupe-wrap{flex:1;min-height:300px;position:relative;background:radial-gradient(circle at center,#172f52 0,#0c1523 75%);box-shadow:inset 0 -1px 0 rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:18px;overflow:hidden}
+.loupe-wrap canvas{width:100%;height:100%}
+.loupe-topbar{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;z-index:4;pointer-events:none}
+.loupe-meta{display:flex;flex-direction:column;gap:6px}
+.loupe-title{font-size:16px;font-weight:800;color:var(--text)}
+.loupe-label{font-size:12px;font-weight:700;color:var(--text2);background:rgba(8,17,31,.78);border:1px solid rgba(88,196,255,.28);padding:6px 10px;border-radius:999px;display:inline-flex;width:max-content}
+.loupe-readout{max-width:240px;font-size:12px;line-height:1.35;color:var(--text2);text-align:right;background:rgba(8,17,31,.82);border:1px solid rgba(255,255,255,.08);padding:8px 10px;border-radius:12px;box-shadow:var(--shadow)}
+.loupe-zoom{position:absolute;right:12px;bottom:12px;display:flex;gap:8px;z-index:4}
+.loupe-zoom button{width:40px;height:40px;border:1px solid var(--border-strong);border-radius:12px;background:rgba(8,17,31,.84);color:var(--text);cursor:pointer;font-size:22px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow)}
+.loupe-zoom button:hover{background:var(--surface2);border-color:var(--accent2)}
+
+/* Sidebar (scrollable) */
+.sidebar{flex:1;min-height:0;overflow-y:auto;padding-right:4px}
+
+.panel{margin-bottom:18px;padding:14px;border:1px solid rgba(88,196,255,.1);border-radius:16px;background:linear-gradient(180deg,rgba(21,43,74,.88) 0,rgba(12,25,44,.9) 100%);box-shadow:var(--shadow)}
+.panel-title{font-size:13px;font-weight:800;color:var(--accent2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px}
+.form-row{display:flex;gap:10px;margin-bottom:10px;align-items:center}
+.form-row label{font-size:13px;font-weight:700;color:var(--text2);min-width:84px}
+input[type="number"],input[type="text"],select{background:rgba(8,17,31,.96);border:1px solid var(--border);border-radius:10px;color:var(--text);padding:10px 12px;font-size:14px;width:100%}
+input:focus,select:focus{outline:none;border-color:var(--accent2);box-shadow:0 0 0 3px rgba(88,196,255,.14)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid rgba(255,209,102,.92);outline-offset:2px}
+
+.btn{padding:10px 14px;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;transition:transform .15s ease,filter .15s ease}
+.btn:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.04)}
+.btn-primary{background:var(--accent);color:#fff} .btn-primary:hover{background:#d13350}
+.btn-secondary{background:var(--surface2);color:var(--text)} .btn-secondary:hover{background:var(--border)}
+.btn-success{background:var(--success);color:#fff} .btn-success:hover{background:#16a34a}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-sm{padding:8px 10px;font-size:12px}
+
+.arm-item{display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;margin-bottom:8px;cursor:pointer;font-size:14px;background:rgba(8,17,31,.35)}
+.arm-item:hover{border-color:var(--accent2)}
+.arm-item.active{border-color:var(--accent);background:rgba(255,107,87,.12)}
+.arm-color{width:14px;height:14px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 2px rgba(255,255,255,.06)}
+.arm-count{font-size:11px;font-weight:700;color:var(--text3);margin-left:auto}
+
+.slider-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.slider-row input[type="range"]{flex:1;accent-color:var(--accent)}
+.slider-val{font-size:12px;font-weight:700;color:var(--text2);min-width:28px;text-align:right}
+
+.preview-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.preview-table th,.preview-table td{border:1px solid var(--border);padding:6px 8px;text-align:right}
+.preview-table th{background:var(--surface2);text-align:center}
+
+.coord-display{position:absolute;bottom:16px;left:16px;background:rgba(8,17,31,.94);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:10px 12px;font-family:'SF Mono',monospace;font-size:12px;line-height:1.45;z-index:11;display:none;box-shadow:var(--shadow)}
+
+.upload-zone{border:2px dashed var(--border-strong);border-radius:22px;padding:38px 34px;text-align:center;cursor:pointer;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(460px,calc(100% - 48px));z-index:20;background:rgba(8,17,31,.76);backdrop-filter:blur(10px);box-shadow:var(--shadow)}
+.upload-zone:hover{border-color:var(--accent);background:rgba(255,107,87,.07)}
+.upload-zone h3{margin-bottom:8px;font-size:24px;font-weight:800}
+.upload-zone p{color:var(--text2);font-size:14px;line-height:1.55}
+.setup-wizard{position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:32px;z-index:21;background:rgba(6,13,24,.55);backdrop-filter:blur(8px)}
+.setup-card{width:min(760px,100%);max-height:calc(100% - 40px);overflow:auto;padding:22px;border:1px solid rgba(255,255,255,.08);border-radius:22px;background:linear-gradient(180deg,rgba(16,33,58,.96) 0,rgba(10,20,36,.98) 100%);box-shadow:var(--shadow)}
+.setup-title{font-size:22px;font-weight:800;margin-bottom:6px;color:var(--text)}
+.setup-subtitle{font-size:13px;line-height:1.55;color:var(--text2);margin-bottom:18px}
+.setup-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.8fr) minmax(0,1fr);gap:12px;margin-bottom:18px}
+.setup-arms{display:grid;gap:10px;margin-bottom:16px}
+.setup-arm-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:14px;background:rgba(8,17,31,.45)}
+.setup-actions{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-top:18px}
+.setup-note{font-size:12px;color:var(--text3)}
+
+.toolbar{position:absolute;top:16px;left:16px;display:none;gap:6px;z-index:12;background:rgba(8,17,31,.9);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:8px;box-shadow:var(--shadow)}
+.tool-btn{width:42px;height:42px;border:1px solid transparent;border-radius:12px;background:transparent;color:var(--text2);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
+.tool-btn:hover{background:var(--surface2);color:var(--text)}
+.tool-btn.active{background:var(--accent);color:#fff;border-color:rgba(255,255,255,.18)}
+
+.pdf-controls{position:absolute;top:16px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:10px;z-index:12;background:rgba(8,17,31,.92);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:10px 12px;box-shadow:var(--shadow);max-width:min(92%,900px);flex-wrap:wrap;justify-content:center}
+.pdf-badge{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--accent2)}
+.pdf-page-info{font-size:12px;font-weight:700;color:var(--text2);min-width:120px;text-align:center}
+.pdf-page-input{width:84px !important;text-align:center}
+.pdf-crop-info{font-size:12px;color:var(--text3)}
+
+.canvas-status{position:absolute;top:16px;right:16px;max-width:340px;background:rgba(8,17,31,.92);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:12px 14px;z-index:12;display:none;box-shadow:var(--shadow)}
+.canvas-status strong{display:block;font-size:14px;font-weight:800;color:var(--text);margin-bottom:3px}
+.canvas-status span{display:block;font-size:12px;line-height:1.45;color:var(--text2)}
+
+.canvas-cursor{position:absolute;left:0;top:0;transform:translate(-50%,-50%);pointer-events:none;z-index:15;opacity:0;transition:opacity .12s ease;--cursor-color:var(--accent3)}
+.canvas-cursor.visible{opacity:1}
+.cursor-line-h,.cursor-line-v{position:absolute;left:50%;top:50%;background:var(--cursor-color);opacity:.98;border-radius:999px;transform:translate(-50%,-50%);box-shadow:0 0 0 1px rgba(8,17,31,.96),0 0 16px rgba(255,209,102,.26)}
+.cursor-line-h{width:54px;height:2px}
+.cursor-line-v{width:2px;height:54px}
+.cursor-ring{position:absolute;left:50%;top:50%;width:30px;height:30px;transform:translate(-50%,-50%);border:2px solid var(--cursor-color);border-radius:50%;box-shadow:0 0 0 2px rgba(8,17,31,.96)}
+.cursor-dot{position:absolute;left:50%;top:50%;width:6px;height:6px;transform:translate(-50%,-50%);background:var(--cursor-color);border-radius:50%;box-shadow:0 0 0 2px rgba(8,17,31,.96)}
+.cursor-label{position:absolute;left:28px;top:24px;white-space:nowrap;background:rgba(8,17,31,.96);border:1px solid var(--border-strong);padding:5px 9px;border-radius:999px;font-size:11px;font-weight:800;color:var(--text);box-shadow:var(--shadow)}
+
+/* NAR table */
+.nar-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+.nar-table th,.nar-table td{border:1px solid var(--border);padding:5px 6px;text-align:center}
+.nar-table th{background:var(--surface2)}
+.nar-table input{width:62px;text-align:center;padding:6px 8px;font-size:12px}
+
+::-webkit-scrollbar{width:8px} ::-webkit-scrollbar-track{background:rgba(8,17,31,.8)} ::-webkit-scrollbar-thumb{background:var(--border);border-radius:999px}
+
+@media (max-width: 1200px){
+  body{grid-template-columns:minmax(0,1fr) clamp(520px,42vw,620px)}
+  .right-panel{width:100%}
+  .inspector-shell{grid-template-columns:1fr;grid-template-rows:minmax(320px,1.1fr) minmax(260px,.9fr)}
+  .loupe-wrap{min-height:260px}
+}
+
+@media (max-width: 980px){
+  body{height:auto;min-height:100vh;display:flex;flex-direction:column;overflow:auto}
+  header,.steps-bar,.main,.right-panel{grid-column:auto;grid-row:auto}
+  .main{display:flex;flex-direction:column}
+  .right-panel{width:100%;border-left:none;border-top:1px solid var(--border)}
+  .loupe-wrap{flex-basis:260px;min-height:260px}
+  .canvas-area{min-height:56vh}
+  .steps-bar{flex-wrap:wrap}
+  .canvas-status{max-width:calc(100% - 32px)}
+  .inspector-shell{grid-template-columns:1fr;grid-template-rows:minmax(320px,40vh) minmax(260px,30vh)}
+  .controls-column{order:1;border-bottom:1px solid rgba(255,255,255,.08)}
+  .loupe-column{order:2}
+  .setup-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-brand">
+    <h1><span>KM</span> Curve Digitizer</h1>
+    <p class="header-subtitle">Upload the figure first, complete the setup screen, then calibrate and trace in sequence.</p>
+  </div>
+</header>
+
+<div class="steps-bar">
+  <button class="step-btn active" data-step="1" onclick="goStep(1)" disabled>1. X-Axis</button>
+  <button class="step-btn" data-step="2" onclick="goStep(2)" disabled>2. Y-Axis</button>
+  <button class="step-btn" data-step="3" onclick="goStep(3)" disabled>3. Trace</button>
+  <button class="step-btn" data-step="4" onclick="goStep(4)" disabled>4. NAR & Export</button>
+  <button class="step-btn" id="helpTabBtn" type="button" onclick="openHelp()">How to Use</button>
+</div>
+
+<div class="main">
+  <!-- Main canvas -->
+  <div class="canvas-area" id="canvasArea">
+    <div id="uploadZone" class="upload-zone">
+      <h3>Upload KM Figure</h3>
+      <p>Drag & drop or click — PNG / JPG / PDF</p>
+      <input type="file" id="fileInput" accept="image/*,.pdf,application/pdf" style="display:none">
+    </div>
+    <div class="setup-wizard" id="setupWizard">
+      <div class="setup-card">
+        <div id="setupWizardContent"></div>
+      </div>
+    </div>
+    <div class="toolbar" id="toolbar">
+      <button class="tool-btn" id="btnPen" title="Freehand (F)" onclick="setTool('freehand')">✏️</button>
+      <button class="tool-btn" id="btnClick" title="Click (C)" onclick="setTool('click')">📍</button>
+      <button class="tool-btn" id="btnAuto" title="Auto-trace (A)" onclick="setTool('autotrace')">🎯</button>
+      <button class="tool-btn" id="btnMask" title="Mask Text (M)" onclick="setTool('mask')">🩹</button>
+      <button class="tool-btn" id="btnEraser" title="Eraser (E)" onclick="setTool('eraser')">🧹</button>
+      <button class="tool-btn" id="btnDrag" title="Drag (D)" onclick="setTool('drag')">✋</button>
+      <span style="width:1px;background:var(--border);margin:3px 1px"></span>
+      <button class="tool-btn" title="Undo (⌘Z)" onclick="undo()">↩️</button>
+      <button class="tool-btn" title="Redo" onclick="redo()">↪️</button>
+      <span style="width:1px;background:var(--border);margin:3px 1px"></span>
+      <button class="tool-btn" title="Reset All" onclick="resetAll()" style="color:var(--accent)">🔄</button>
+    </div>
+    <div class="pdf-controls" id="pdfControls">
+      <span class="pdf-badge">PDF</span>
+      <button class="btn btn-secondary btn-sm" type="button" onclick="changePdfPage(-1)">← Prev</button>
+      <div class="pdf-page-info" id="pdfPageInfo">Page 1 / 1</div>
+      <input class="pdf-page-input" type="number" id="pdfPageInput" min="1" value="1" onchange="jumpPdfPage(this.value)">
+      <button class="btn btn-secondary btn-sm" type="button" onclick="changePdfPage(1)">Next →</button>
+      <button class="btn btn-secondary btn-sm" type="button" id="pdfCropToggleBtn" onclick="togglePdfCropMode()">Select Region</button>
+      <button class="btn btn-primary btn-sm" type="button" id="pdfCropApplyBtn" onclick="applyPdfCrop()" style="display:none">Apply Crop</button>
+      <button class="btn btn-secondary btn-sm" type="button" id="pdfCropClearBtn" onclick="clearPdfCrop()" style="display:none">Full Page</button>
+      <span class="pdf-crop-info" id="pdfCropInfo">Tracing the full page.</span>
+    </div>
+    <div class="canvas-status" id="canvasStatus"></div>
+    <canvas id="mainCanvas"></canvas>
+    <div class="canvas-cursor" id="canvasCursor" aria-hidden="true">
+      <div class="cursor-line-h"></div>
+      <div class="cursor-line-v"></div>
+      <div class="cursor-ring"></div>
+      <div class="cursor-dot"></div>
+      <div class="cursor-label" id="cursorLabel">Trace</div>
+    </div>
+    <div class="coord-display" id="coordDisplay">
+      <span id="coordPixel">px: —</span> · <span id="coordData">x: — y: —</span>
+    </div>
+  </div>
+</div>
+
+<!-- Right: Loupe + Sidebar -->
+<div class="right-panel">
+  <div class="inspector-shell">
+    <div class="controls-column" id="controlsPane">
+      <div class="sidebar-summary" id="sidebarSummary"></div>
+      <div class="sidebar" id="sidebar"><div id="sb"></div></div>
+    </div>
+    <div class="loupe-column" id="loupePane">
+      <div class="loupe-column-head">
+        <strong>Magnifier</strong>
+        <span>Keep the curve under the cursor while adjusting calibration and tracing.</span>
+      </div>
+      <div class="loupe-wrap">
+        <canvas id="loupeCanvas"></canvas>
+        <div class="loupe-topbar">
+          <div class="loupe-meta">
+            <div class="loupe-title">Magnifier</div>
+            <div class="loupe-label" id="loupeLabel">6× zoom</div>
+          </div>
+          <div class="loupe-readout" id="loupeCoords">Move over the curve to inspect pixels and data coordinates.</div>
+        </div>
+        <div class="loupe-zoom">
+          <button onclick="loupeZoom(-1)">−</button>
+          <button onclick="loupeZoom(1)">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== STATE ===== */
+const S = {
+  step:1, sessionId:null, image:null, imgW:0, imgH:0,
+  showHelp:false,
+  setupComplete:false,
+  sourceType:'image',
+  pdfPageCount:0,
+  pdfPage:1,
+  pdfCrop:null,
+  pdfCropDraft:null,
+  pdfSelecting:false,
+  pdfSelectionStart:null,
+  imageVersion:0,
+  // fit-to-view transform for main canvas
+  scale:1, offX:0, offY:0,
+
+  // metadata
+  study:'', population:'ITT', endpoint:'',
+
+  // calibration
+  calX:{pxA:null,pxB:null,vA:0,vB:1},
+  calY:{pxA:null,pxB:null,vA:0,vB:1},
+
+  // arms
+  arms:[],
+  activeArm:0,
+  colors:['#D62728','#1F77B4','#2CA02C','#FF7F0E','#9467BD','#8C564B'],
+  imageMasks:[],
+  maskBrush:24,
+
+  // tool
+  tool:'freehand', drawing:false, dragIdx:-1,
+
+  // loupe
+  loupeZoom:6, mouseImgX:0, mouseImgY:0,
+
+  // undo
+  undoStack:[], redoStack:[],
+
+  // autotrace
+  autoTol:30, autoEps:2,
+};
+
+const TOOL_META = {
+  freehand:{label:'Pen',color:'#ffd166'},
+  click:{label:'Click',color:'#67e8f9'},
+  autotrace:{label:'Auto-trace',color:'#ff7b72'},
+  mask:{label:'Mask text',color:'#f8fafc'},
+  eraser:{label:'Erase',color:'#f97373'},
+  drag:{label:'Drag point',color:'#c084fc'},
+  pdfcrop:{label:'Select region',color:'#7dd3fc'},
+  calX:{label:'Set X-axis',color:'#ff8b7a'},
+  calY:{label:'Set Y-axis',color:'#58c4ff'},
+};
+
+/* ===== CANVASES ===== */
+const mainC = document.getElementById('mainCanvas');
+const mainCtx = mainC.getContext('2d');
+const loupeC = document.getElementById('loupeCanvas');
+const loupeCtx = loupeC.getContext('2d');
+const areaEl = document.getElementById('canvasArea');
+const cursorEl = document.getElementById('canvasCursor');
+const cursorLabelEl = document.getElementById('cursorLabel');
+const canvasStatusEl = document.getElementById('canvasStatus');
+const loupeCoordsEl = document.getElementById('loupeCoords');
+const pdfControlsEl = document.getElementById('pdfControls');
+
+function resizeMain(){
+  const r = areaEl.getBoundingClientRect();
+  mainC.width = r.width;
+  mainC.height = r.height;
+  if(S.image) fitImage();
+}
+
+function fitImage(){
+  const r = areaEl.getBoundingClientRect();
+  const sx = r.width / S.imgW, sy = r.height / S.imgH;
+  S.scale = Math.min(sx, sy) * 0.95;
+  S.offX = (r.width - S.imgW * S.scale) / 2;
+  S.offY = (r.height - S.imgH * S.scale) / 2;
+  redrawMain();
+}
+
+function resizeLoupe(){
+  const r = loupeC.parentElement.getBoundingClientRect();
+  loupeC.width = r.width;
+  loupeC.height = r.height;
+}
+
+function getCursorMeta(){
+  if(S.pdfSelecting) return TOOL_META.pdfcrop;
+  if(S.setupComplete && S.step===1) return TOOL_META.calX;
+  if(S.setupComplete && S.step===2) return TOOL_META.calY;
+  return TOOL_META[S.tool] || TOOL_META.freehand;
+}
+
+function syncCursorAppearance(){
+  const meta = getCursorMeta();
+  cursorEl.style.setProperty('--cursor-color', meta.color);
+  cursorLabelEl.textContent = meta.label;
+  mainC.style.cursor = S.image ? 'none' : 'default';
+}
+
+function setCursorVisible(visible){
+  cursorEl.classList.toggle('visible', visible && !!S.image);
+}
+
+function moveCursor(sx, sy){
+  cursorEl.style.left = `${sx}px`;
+  cursorEl.style.top = `${sy}px`;
+}
+
+function updateWorkspaceVisibility(){
+  const toolbar=document.getElementById('toolbar');
+  const coord=document.getElementById('coordDisplay');
+  const wizard=document.getElementById('setupWizard');
+  if(toolbar) toolbar.style.display = (S.image && S.setupComplete && S.step===3 && !S.showHelp) ? 'flex' : 'none';
+  if(coord) coord.style.display = (S.image && S.setupComplete) ? 'block' : 'none';
+  if(wizard) wizard.style.display = (S.image && !S.setupComplete) ? 'flex' : 'none';
+}
+
+function updateCanvasStatus(){
+  if(!S.image){
+    canvasStatusEl.style.display = 'none';
+    return;
+  }
+
+  let title = 'Setup';
+  let body = 'Complete study metadata and define arms before opening the tracing workspace.';
+
+  if(S.pdfSelecting){
+    title = 'PDF Region Selection';
+    body = 'Drag a rectangle over the page. Apply Crop to focus tracing on that region, or cancel to keep the full page.';
+  }else if(S.setupComplete && S.step===1){
+    title = 'Step 1: Calibrate X-axis';
+    body = 'Click two known points on the X-axis. The highlighted cursor marks your calibration clicks.';
+  }else if(S.setupComplete && S.step===2){
+    title = 'Step 2: Calibrate Y-axis';
+    body = 'Click two known points on the Y-axis. Use the magnifier to place them precisely.';
+  }else if(S.setupComplete && S.step===3){
+    const toolHelp = {
+      freehand:'Trace directly on the KM line. Release the mouse to simplify and sort points.',
+      click:'Click point-by-point along the curve for careful manual reconstruction.',
+      autotrace:'Click on the curve color once. Adjust tolerance or simplify if the trace is too broad.',
+      mask:'Paint over unwanted labels or legends. Masked regions are hidden from both view and auto-trace.',
+      eraser:'Hold and sweep over points to remove noisy segments.',
+      drag:'Grab an existing point and reposition it for fine correction.'
+    };
+    title = `Step 3: ${getCursorMeta().label}`;
+    body = `${toolHelp[S.tool] || ''} Mouse wheel changes magnifier zoom.`;
+  }else if(S.setupComplete && S.step===4){
+    title = 'Step 4: NAR & Export';
+    body = 'Review numbers at risk for each arm, then export CSV and JSON once tracing is complete.';
+  }
+
+  canvasStatusEl.innerHTML = `<strong>${title}</strong><span>${body}</span>`;
+  canvasStatusEl.style.display = 'block';
+}
+
+function hexToRgba(hex, alpha){
+  const clean = hex.replace('#','');
+  const n = clean.length===3
+    ? clean.split('').map(ch=>ch+ch).join('')
+    : clean;
+  const num = parseInt(n, 16);
+  return `rgba(${(num>>16)&255}, ${(num>>8)&255}, ${num&255}, ${alpha})`;
+}
+
+function buildImageUrl(){
+  if(S._localDataUrl) return S._localDataUrl;
+  const params = new URLSearchParams();
+  params.set('v', String(S.imageVersion));
+  if(S.sourceType==='pdf'){
+    params.set('page', String(S.pdfPage));
+    if(S.pdfCrop) params.set('crop', S.pdfCrop.join(','));
+  }
+  return `/api/image/${S.sessionId}?${params.toString()}`;
+}
+
+function clearTracingState(){
+  S.calX={pxA:null,pxB:null,vA:S.calX.vA,vB:S.calX.vB};
+  S.calY={pxA:null,pxB:null,vA:S.calY.vA,vB:S.calY.vB};
+  S.arms.forEach(a=>{a.points=[];});
+  S.imageMasks=[];
+  S.undoStack=[];
+  S.redoStack=[];
+}
+
+function hasTracingState(){
+  return !!(
+    S.calX.pxA || S.calX.pxB || S.calY.pxA || S.calY.pxB ||
+    S.imageMasks.length || S.arms.some(a=>a.points.length)
+  );
+}
+
+function confirmViewReset(reason){
+  if(!hasTracingState()) return true;
+  return confirm(`${reason} This will clear current calibration, masks, and traced points. Continue?`);
+}
+
+function syncPdfControls(){
+  if(!pdfControlsEl) return;
+  const isPdf = S.sourceType==='pdf' && !!S.sessionId;
+  pdfControlsEl.style.display = isPdf ? 'flex' : 'none';
+  if(!isPdf) return;
+
+  const pageInfo=document.getElementById('pdfPageInfo');
+  const pageInput=document.getElementById('pdfPageInput');
+  const cropToggle=document.getElementById('pdfCropToggleBtn');
+  const cropApply=document.getElementById('pdfCropApplyBtn');
+  const cropClear=document.getElementById('pdfCropClearBtn');
+  const cropInfo=document.getElementById('pdfCropInfo');
+
+  pageInfo.textContent = `Page ${S.pdfPage} / ${S.pdfPageCount}`;
+  pageInput.value = S.pdfPage;
+  pageInput.max = S.pdfPageCount;
+  cropToggle.textContent = S.pdfSelecting ? 'Cancel Selection' : 'Select Region';
+  cropApply.style.display = S.pdfCropDraft ? 'inline-flex' : 'none';
+  cropClear.style.display = S.pdfCrop ? 'inline-flex' : 'none';
+  cropInfo.textContent = S.pdfCrop
+    ? `Crop: ${S.pdfCrop[2]} × ${S.pdfCrop[3]} px`
+    : 'Tracing the full page.';
+}
+
+function loadRenderedSource(){
+  if(!S.sessionId) return;
+  const img=new Image();
+  img.onload=()=>{
+    S.image=img;
+    S.imgW=img.width;
+    S.imgH=img.height;
+    uz.style.display='none';
+    resizeMain();
+    resizeLoupe();
+    syncCursorAppearance();
+    updateCanvasStatus();
+    syncPdfControls();
+    loupeZoom(0);
+    updateWorkspaceVisibility();
+    renderSB();
+  };
+  img.src=buildImageUrl();
+}
+
+async function setPdfView({page=S.pdfPage, crop=S.pdfCrop, forceReset=false}={}){
+  if(S.sourceType!=='pdf' || !S.sessionId) return;
+  const pageChanged = page !== S.pdfPage;
+  const cropChanged = JSON.stringify(crop||null) !== JSON.stringify(S.pdfCrop||null);
+  if(!pageChanged && !cropChanged && !forceReset) return;
+
+  if((pageChanged || cropChanged) && !forceReset){
+    const reason = pageChanged ? 'Changing the PDF page resets the current tracing view.' : 'Changing the crop resets the current tracing view.';
+    if(!confirmViewReset(reason)) return;
+  }
+
+  if(pageChanged || cropChanged || forceReset){
+    clearTracingState();
+    S.step=1;
+    S.showHelp=false;
+  }
+
+  S.pdfPage = page;
+  S.pdfCrop = crop || null;
+  S.pdfCropDraft = null;
+  S.pdfSelecting = false;
+  S.pdfSelectionStart = null;
+  S.imageVersion += 1;
+  renderStepButtons();
+  syncPdfControls();
+  loadRenderedSource();
+}
+
+function changePdfPage(delta){
+  const next = Math.max(1, Math.min(S.pdfPageCount, S.pdfPage + delta));
+  if(next===S.pdfPage) return;
+  setPdfView({page:next, crop:null});
+}
+
+function jumpPdfPage(value){
+  const next = Math.max(1, Math.min(S.pdfPageCount, Number(value) || S.pdfPage));
+  if(next===S.pdfPage){
+    syncPdfControls();
+    return;
+  }
+  setPdfView({page:next, crop:null});
+}
+
+function togglePdfCropMode(){
+  if(S.sourceType!=='pdf') return;
+  S.pdfSelecting = !S.pdfSelecting;
+  S.pdfCropDraft = null;
+  S.pdfSelectionStart = null;
+  syncCursorAppearance();
+  updateCanvasStatus();
+  syncPdfControls();
+  redrawMain();
+}
+
+function applyPdfCrop(){
+  if(!S.pdfCropDraft) return;
+  const base = S.pdfCrop || [0,0,0,0];
+  const nextCrop = [
+    base[0] + S.pdfCropDraft[0],
+    base[1] + S.pdfCropDraft[1],
+    S.pdfCropDraft[2],
+    S.pdfCropDraft[3]
+  ];
+  setPdfView({page:S.pdfPage, crop:nextCrop});
+}
+
+function clearPdfCrop(){
+  if(!S.pdfCrop) return;
+  setPdfView({page:S.pdfPage, crop:null});
+}
+
+function normalizeRect(x0,y0,x1,y1){
+  const x=Math.min(x0,x1), y=Math.min(y0,y1);
+  const w=Math.abs(x1-x0), h=Math.abs(y1-y0);
+  return [Math.round(x), Math.round(y), Math.round(w), Math.round(h)];
+}
+
+function esc(value){
+  return String(value ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+window.addEventListener('resize', ()=>{ resizeMain(); resizeLoupe(); redrawLoupe(); updateCanvasStatus(); });
+
+/* ===== COORDINATE TRANSFORMS ===== */
+// screen → image pixel
+function screen2img(sx, sy){
+  return [(sx - S.offX) / S.scale, (sy - S.offY) / S.scale];
+}
+// image pixel → screen
+function img2screen(ix, iy){
+  return [ix * S.scale + S.offX, iy * S.scale + S.offY];
+}
+// image pixel → data
+function px2data(px, py){
+  const cx=S.calX, cy=S.calY;
+  if(!cx.pxA||!cx.pxB||!cy.pxA||!cy.pxB) return null;
+  const dx = cx.vA + (px - cx.pxA[0]) * (cx.vB - cx.vA) / (cx.pxB[0] - cx.pxA[0]);
+  const dy = cy.vA + (py - cy.pxA[1]) * (cy.vB - cy.vA) / (cy.pxB[1] - cy.pxA[1]);
+  return [dx, dy];
+}
+
+/* ===== UPLOAD ===== */
+const uz=document.getElementById('uploadZone'), fi=document.getElementById('fileInput');
+uz.addEventListener('click',()=>fi.click());
+uz.addEventListener('dragover',e=>{e.preventDefault();uz.style.borderColor='var(--accent)';});
+uz.addEventListener('dragleave',()=>{uz.style.borderColor='';});
+uz.addEventListener('drop',e=>{e.preventDefault();uz.style.borderColor='';if(e.dataTransfer.files.length)handleFile(e.dataTransfer.files[0]);});
+fi.addEventListener('change',()=>{if(fi.files.length)handleFile(fi.files[0]);});
+
+async function handleFile(file){
+  const ext=(file.name||'').split('.').pop().toLowerCase();
+  if(ext==='pdf'){alert('PDF requires the Flask backend. Run: python app.py');return;}
+  const dataUrl=await new Promise((res,rej)=>{const rd=new FileReader();rd.onload=()=>res(rd.result);rd.onerror=rej;rd.readAsDataURL(file);});
+  S.sessionId='local';
+  S._localDataUrl=dataUrl;
+  S.sourceType='image';
+  S.pdfPageCount=0;
+  S.pdfPage=1;
+  S.pdfCrop=null;
+  S.pdfCropDraft=null;
+  S.pdfSelecting=false;
+  S.pdfSelectionStart=null;
+  S.imageVersion=1;
+  S.setupComplete=false;
+  S.calX={pxA:null,pxB:null,vA:0,vB:1};
+  S.calY={pxA:null,pxB:null,vA:0,vB:1};
+  S.study='';
+  S.population='ITT';
+  S.endpoint='';
+  S.arms=[];
+  S.activeArm=0;
+  clearTracingState();
+  S.showHelp=false;
+  S.step=1;
+  renderStepButtons();
+  syncPdfControls();
+  renderSetupWizard();
+  loadRenderedSource();
+}
+
+/* ===== STEPS ===== */
+function maxStep(){
+  if(!S.image || !S.setupComplete) return 0;
+  if(!S.calX.pxA||!S.calX.pxB) return 1;
+  if(!S.calY.pxA||!S.calY.pxB) return 2;
+  if(S.step < 3) return 3;
+  return 4;
+}
+function renderStepButtons(){
+  document.querySelectorAll('.step-btn').forEach(b=>{
+    if(!b.dataset.step) return;
+    const s=+b.dataset.step;
+    b.classList.toggle('active',s===S.step);
+    b.classList.toggle('done',s<S.step);
+    b.disabled=!S.setupComplete || s>maxStep();
+  });
+  const helpBtn=document.getElementById('helpTabBtn');
+  if(helpBtn) helpBtn.classList.toggle('active', S.showHelp);
+}
+
+function renderSidebarSummary(){
+  const el=document.getElementById('sidebarSummary');
+  if(!el) return;
+
+  if(!S.image){
+    el.innerHTML = '<strong>No figure loaded</strong><span>Upload an image or PDF to start calibration and tracing.</span>';
+    return;
+  }
+
+  if(!S.setupComplete){
+    el.innerHTML = '<strong>Setup Required</strong><span>Complete study, endpoint, population, and arms in the setup screen before the tracing workspace opens.</span>';
+    return;
+  }
+
+  const stepLabels = {
+    1:'X-axis calibration',
+    2:'Y-axis calibration',
+    3:'Trace',
+    4:'NAR & export'
+  };
+  const activeArm = S.arms[S.activeArm];
+  const pointCount = activeArm ? activeArm.points.length : 0;
+  const armLabel = activeArm ? (activeArm.name || `Arm ${S.activeArm+1}`) : 'No arm selected';
+  const sourceLabel = S.sourceType==='pdf'
+    ? `PDF page ${S.pdfPage}${S.pdfCrop ? ' · cropped view' : ''}`
+    : 'Image mode';
+
+  el.innerHTML = `<strong>${stepLabels[S.step] || 'Workspace'}</strong><span>${sourceLabel} · Active arm: ${armLabel} · ${pointCount} traced points</span>`;
+}
+
+function selectArm(i){
+  if(i<0 || i>=S.arms.length) return;
+  S.activeArm=i;
+  renderSB();
+  redrawMain();
+  redrawLoupe();
+}
+
+function renameArm(i, value){
+  if(!S.arms[i]) return;
+  S.arms[i].name=value;
+}
+
+function removeArm(i){
+  if(i<0 || i>=S.arms.length) return;
+  S.arms.splice(i,1);
+  if(S.activeArm>=S.arms.length) S.activeArm=Math.max(0, S.arms.length-1);
+  renderSetupWizard();
+  renderStepButtons();
+}
+
+function openHelp(){
+  S.showHelp=true;
+  renderStepButtons();
+  renderSB();
+  updateWorkspaceVisibility();
+  updateCanvasStatus();
+  redrawMain();
+  redrawLoupe();
+}
+
+function goStep(n){
+  if(!S.setupComplete) return;
+  S.step=n;
+  S.showHelp=false;
+  renderStepButtons();
+  renderSB(); redrawMain();
+  updateWorkspaceVisibility();
+  syncCursorAppearance();
+  updateCanvasStatus();
+  redrawLoupe();
+}
+
+/* ===== SIDEBAR ===== */
+function renderSB(){
+  renderSidebarSummary();
+  const el=document.getElementById('sb');
+  if(S.showHelp) el.innerHTML=renderHelp();
+  else if(!S.image) el.innerHTML='';
+  else if(!S.setupComplete) el.innerHTML=renderPendingSetup();
+  else if(S.step===1) el.innerHTML=renderCalX();
+  else if(S.step===2) el.innerHTML=renderCalY();
+  else if(S.step===3) el.innerHTML=renderTrace();
+  else if(S.step===4) el.innerHTML=renderNARExport();
+  else el.innerHTML='';
+}
+
+function addArm(){
+  const id=S.arms.length?Math.max(...S.arms.map(a=>a.id))+1:0;
+  S.arms.push({id, name:'', color:S.colors[id%S.colors.length], points:[], nar:[]});
+  S.activeArm=S.arms.length-1;
+  renderSetupWizard();
+}
+function addNarRow(ai){
+  const arm=S.arms[ai];
+  const lastTime = arm.nar.length ? Number(arm.nar[arm.nar.length-1].time) : NaN;
+  const lastT = Number.isFinite(lastTime) ? lastTime + 1 : 0;
+  arm.nar.push({time:lastT, n:''});
+  renderSB();
+}
+
+function updateNar(ai, ri, field, value){
+  const arm=S.arms[ai];
+  if(!arm || !arm.nar[ri]) return;
+  arm.nar[ri][field] = field==='time'
+    ? (value==='' ? '' : Number(value))
+    : value;
+}
+
+function removeNarRow(ai, ri){
+  const arm=S.arms[ai];
+  if(!arm || !arm.nar[ri]) return;
+  arm.nar.splice(ri, 1);
+  renderSB();
+}
+
+function clearArmPoints(ai){
+  const arm=S.arms[ai];
+  if(!arm || !arm.points.length) return;
+  if(!confirm(`Clear traced points for ${arm.name || `Arm ${ai+1}`}?`)) return;
+  pushUndo();
+  arm.points=[];
+  renderSB();
+  redrawMain();
+  redrawLoupe();
+}
+
+function renderPendingSetup(){
+  return `<div class="panel"><div class="panel-title">Setup</div>
+    <p style="font-size:13px;line-height:1.6;color:var(--text2);margin-bottom:12px">
+      Fill the setup form on the image first. The tracing workspace opens only after study metadata and arm names are confirmed.
+    </p>
+    <div style="display:grid;gap:10px">
+      <div style="padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:rgba(8,17,31,.32)">
+        <strong style="display:block;font-size:13px;margin-bottom:4px">Required now</strong>
+        <span style="font-size:12px;line-height:1.5;color:var(--text2)">Study name, endpoint, population, and at least one arm.</span>
+      </div>
+      <div style="padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:rgba(8,17,31,.32)">
+        <strong style="display:block;font-size:13px;margin-bottom:4px">Next after setup</strong>
+        <span style="font-size:12px;line-height:1.5;color:var(--text2)">1. Calibrate X-axis  2. Calibrate Y-axis  3. Select arm and trace  4. Enter NAR and export.</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderSetupWizard(){
+  const el=document.getElementById('setupWizardContent');
+  if(!el) return;
+
+  const filename = S.sessionId ? `Source: ${S.sourceType==='pdf' ? 'PDF' : 'Image'}${S.pdfPageCount ? ` · ${S.pdfPageCount} pages` : ''}` : 'Upload a figure to continue.';
+  el.innerHTML = `
+    <div class="setup-title">Before Tracing</div>
+    <div class="setup-subtitle">Enter the study metadata now. Once you continue, the workspace opens directly on calibration and tracing.</div>
+    <div class="setup-note" style="margin-bottom:14px">${filename}</div>
+    <div class="setup-grid">
+      <div class="header-field">
+        <label for="setupStudy">Study</label>
+        <input id="setupStudy" type="text" value="${esc(S.study)}" placeholder="e.g. CLOSURE-AF" oninput="S.study=this.value">
+      </div>
+      <div class="header-field">
+        <label for="setupPopulation">Population</label>
+        <select id="setupPopulation" onchange="S.population=this.value">
+          ${['ITT','mITT','PP','Per-Protocol','As-Treated','Safety'].map(p=>`<option ${S.population===p?'selected':''}>${p}</option>`).join('')}
+        </select>
+      </div>
+      <div class="header-field">
+        <label for="setupEndpoint">Endpoint</label>
+        <input id="setupEndpoint" type="text" value="${esc(S.endpoint)}" placeholder="e.g. CV Death + Stroke" oninput="S.endpoint=this.value">
+      </div>
+    </div>
+    <div class="panel" style="margin-bottom:0">
+      <div class="panel-title">Arms</div>
+      <div class="setup-arms">
+        ${S.arms.map((a,i)=>`
+          <div class="setup-arm-row">
+            <div class="arm-color" style="background:${a.color}"></div>
+            <input type="text" value="${esc(a.name)}" placeholder="Arm ${i+1}" oninput="renameArm(${i}, this.value)">
+            <button class="btn btn-secondary btn-sm" type="button" onclick="removeArm(${i})">Remove</button>
+          </div>
+        `).join('')}
+        ${!S.arms.length ? '<div class="setup-note">Add one arm for each KM curve you plan to trace.</div>' : ''}
+      </div>
+      <button class="btn btn-secondary btn-sm" type="button" onclick="addArm()">+ Add Arm</button>
+    </div>
+    <div class="setup-actions">
+      <div class="setup-note">You can still switch arms, calibrate axes, trace, and enter NAR later.</div>
+      <button class="btn btn-primary" type="button" onclick="finishSetup()">Continue to Workspace</button>
+    </div>
+  `;
+}
+
+function finishSetup(){
+  if(!S.study.trim()){
+    alert('Please enter the study name.');
+    return;
+  }
+  if(!S.endpoint.trim()){
+    alert('Please enter the endpoint.');
+    return;
+  }
+  if(!S.arms.length){
+    alert('Please add at least one arm.');
+    return;
+  }
+  if(S.arms.some(a=>!(a.name||'').trim())){
+    alert('Please name every arm before continuing.');
+    return;
+  }
+  S.study=S.study.trim();
+  S.endpoint=S.endpoint.trim();
+  S.arms=S.arms.map(a=>({
+    ...a,
+    name:(a.name||'').trim(),
+    nar:Array.isArray(a.nar)?a.nar:[]
+  }));
+  S.setupComplete=true;
+  S.showHelp=false;
+  S.step=1;
+  renderStepButtons();
+  updateWorkspaceVisibility();
+  updateCanvasStatus();
+  renderSB();
+  redrawMain();
+  redrawLoupe();
+}
+
+function renderHelp(){
+  return `<div class="panel"><div class="panel-title">How To Use</div>
+  <p style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px">This tool helps you digitize Kaplan-Meier curves from a figure and export calibrated coordinates.</p>
+  <div style="display:grid;gap:10px">
+    <div style="padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:rgba(8,17,31,.32)">
+      <strong style="display:block;font-size:13px;margin-bottom:4px">1. Upload and setup</strong>
+      <span style="font-size:12px;line-height:1.5;color:var(--text2)">Upload a figure image or a PDF, then complete the setup form for study, population, endpoint, and arm names.</span>
+    </div>
+    <div style="padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:rgba(8,17,31,.32)">
+      <strong style="display:block;font-size:13px;margin-bottom:4px">2. For PDFs, pick a page or crop</strong>
+      <span style="font-size:12px;line-height:1.5;color:var(--text2)">Use the PDF controls above the canvas to move between pages. If needed, drag a region and apply a crop so tracing focuses only on the KM panel.</span>
+    </div>
+    <div style="padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:rgba(8,17,31,.32)">
+      <strong style="display:block;font-size:13px;margin-bottom:4px">3. Calibrate axes</strong>
+      <span style="font-size:12px;line-height:1.5;color:var(--text2)">Use the X-axis and Y-axis tabs to click two known points on each axis. The magnifier helps with precise placement.</span>
+    </div>
+    <div style="padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:rgba(8,17,31,.32)">
+      <strong style="display:block;font-size:13px;margin-bottom:4px">4. Clean the figure</strong>
+      <span style="font-size:12px;line-height:1.5;color:var(--text2)">If the figure contains labels, legends, or extra marks on the curve, use <strong>Mask</strong> to paint them out before tracing.</span>
+    </div>
+    <div style="padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:rgba(8,17,31,.32)">
+      <strong style="display:block;font-size:13px;margin-bottom:4px">5. Trace the selected arm</strong>
+      <span style="font-size:12px;line-height:1.5;color:var(--text2)">Choose the active arm in the Trace panel, then use Auto-trace, Pen, Click, Drag, or Erase. For auto-trace, click directly on a clear segment of the target curve.</span>
+    </div>
+    <div style="padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:rgba(8,17,31,.32)">
+      <strong style="display:block;font-size:13px;margin-bottom:4px">6. Export</strong>
+      <span style="font-size:12px;line-height:1.5;color:var(--text2)">Open the NAR & Export step, enter numbers at risk if available, then download CSV and JSON when you are satisfied with the traced points.</span>
+    </div>
+  </div></div>`;
+}
+
+function renderCalX(){
+  const c=S.calX;
+  return `<div class="panel"><div class="panel-title">X-Axis Calibration</div>
+  <p style="color:var(--text2);font-size:11px;margin-bottom:8px">Click 2 points on X-axis with known values.</p>
+  <div class="form-row"><label>Point A:</label>
+    <input type="number" step="any" value="${c.vA}" style="width:65px" onchange="S.calX.vA=+this.value">
+    <span style="font-size:10px;color:${c.pxA?'var(--success)':'var(--text2)'}">${c.pxA?'✓':'← click'}</span></div>
+  <div class="form-row"><label>Point B:</label>
+    <input type="number" step="any" value="${c.vB}" style="width:65px" onchange="S.calX.vB=+this.value">
+    <span style="font-size:10px;color:${c.pxB?'var(--success)':'var(--text2)'}">${c.pxB?'✓':'← click'}</span></div>
+  <div style="margin-top:8px">
+    <button class="btn btn-sm btn-secondary" onclick="S.calX={pxA:null,pxB:null,vA:S.calX.vA,vB:S.calX.vB};renderSB();redrawMain()">Reset</button>
+    ${c.pxA&&c.pxB?'<button class="btn btn-sm btn-primary" style="margin-left:5px" onclick="goStep(2)">Next →</button>':''}
+  </div></div>`;
+}
+
+function renderCalY(){
+  const c=S.calY;
+  return `<div class="panel"><div class="panel-title">Y-Axis Calibration</div>
+  <p style="color:var(--text2);font-size:11px;margin-bottom:8px">Click 2 points on Y-axis with known values.</p>
+  <div class="form-row"><label>Point A:</label>
+    <input type="number" step="any" value="${c.vA}" style="width:65px" onchange="S.calY.vA=+this.value">
+    <span style="font-size:10px;color:${c.pxA?'var(--success)':'var(--text2)'}">${c.pxA?'✓':'← click'}</span></div>
+  <div class="form-row"><label>Point B:</label>
+    <input type="number" step="any" value="${c.vB}" style="width:65px" onchange="S.calY.vB=+this.value">
+    <span style="font-size:10px;color:${c.pxB?'var(--success)':'var(--text2)'}">${c.pxB?'✓':'← click'}</span></div>
+  <div style="margin-top:8px">
+    <button class="btn btn-sm btn-secondary" onclick="S.calY={pxA:null,pxB:null,vA:S.calY.vA,vB:S.calY.vB};renderSB();redrawMain()">Reset</button>
+    ${c.pxA&&c.pxB?'<button class="btn btn-sm btn-primary" style="margin-left:5px" onclick="goStep(3)">Next →</button>':''}
+  </div></div>`;
+}
+
+function renderTrace(){
+  const arm=S.arms[S.activeArm];
+  if(!arm) return '<p style="color:var(--text2)">No arms defined.</p>';
+  let previewRows='';
+  const pts=[...arm.points].sort((a,b)=>a[0]-b[0]);
+  pts.slice(0,15).forEach(p=>{
+    const d=px2data(p[0],p[1]);
+    if(d) previewRows+=`<tr><td>${d[0].toFixed(3)}</td><td>${d[1].toFixed(3)}</td></tr>`;
+  });
+  if(pts.length>15) previewRows+=`<tr><td colspan="2" style="text-align:center;color:var(--text2)">… +${pts.length-15}</td></tr>`;
+
+  return `
+  <div class="panel"><div class="panel-title">Tool</div>
+    <div style="display:flex;gap:3px;flex-wrap:wrap">
+      <button class="btn btn-sm ${S.tool==='freehand'?'btn-primary':'btn-secondary'}" onclick="setTool('freehand')">✏️ Pen</button>
+      <button class="btn btn-sm ${S.tool==='click'?'btn-primary':'btn-secondary'}" onclick="setTool('click')">📍 Click</button>
+      <button class="btn btn-sm ${S.tool==='autotrace'?'btn-primary':'btn-secondary'}" onclick="setTool('autotrace')">🎯 Auto</button>
+      <button class="btn btn-sm ${S.tool==='mask'?'btn-primary':'btn-secondary'}" onclick="setTool('mask')">🩹 Mask</button>
+      <button class="btn btn-sm ${S.tool==='eraser'?'btn-primary':'btn-secondary'}" onclick="setTool('eraser')">🧹 Erase</button>
+      <button class="btn btn-sm ${S.tool==='drag'?'btn-primary':'btn-secondary'}" onclick="setTool('drag')">✋ Drag</button>
+    </div>
+    <p style="font-size:11px;color:var(--text2);margin-top:8px;line-height:1.5">
+      Trace is written into <strong>${esc(arm.name || `Arm ${S.activeArm+1}`)}</strong>. The highlighted line on the figure shows the currently selected arm.
+    </p>
+    ${S.tool==='autotrace'?`
+    <div style="margin-top:6px;padding-top:5px;border-top:1px solid var(--border)">
+      <p style="font-size:10px;color:var(--text2);margin-bottom:4px">Click on curve to pick color</p>
+      <div class="slider-row"><label style="font-size:10px;min-width:50px">Tolerance</label>
+        <input type="range" min="5" max="80" value="${S.autoTol}" oninput="S.autoTol=+this.value;this.nextElementSibling.textContent=this.value">
+        <span class="slider-val">${S.autoTol}</span></div>
+      <div class="slider-row"><label style="font-size:10px;min-width:50px">Simplify</label>
+        <input type="range" min="0.5" max="10" step="0.5" value="${S.autoEps}" oninput="S.autoEps=+this.value;this.nextElementSibling.textContent=this.value">
+        <span class="slider-val">${S.autoEps}</span></div>
+    </div>`:''}
+    ${S.tool==='mask'||S.imageMasks.length?`
+    <div style="margin-top:6px;padding-top:5px;border-top:1px solid var(--border)">
+      <p style="font-size:11px;color:var(--text2);margin-bottom:6px">Paint over text, legends, or noise before tracing. Masked areas also affect auto-trace.</p>
+      <div class="slider-row"><label style="font-size:11px;min-width:50px">Brush</label>
+        <input type="range" min="8" max="80" step="2" value="${S.maskBrush}" oninput="S.maskBrush=+this.value;this.nextElementSibling.textContent=this.value">
+        <span class="slider-val">${S.maskBrush}</span></div>
+      <button class="btn btn-sm btn-secondary" style="width:100%" onclick="pushUndo();S.imageMasks=[];renderSB();redrawMain();redrawLoupe()">Clear masks (${S.imageMasks.length})</button>
+    </div>`:''}
+  </div>
+
+  <div class="panel"><div class="panel-title">Arms</div>
+    <div style="display:grid;gap:8px">
+      ${S.arms.map((a,i)=>`
+        <button class="arm-item ${i===S.activeArm?'active':''}" type="button" onclick="selectArm(${i})">
+          <span class="arm-color" style="background:${a.color}"></span>
+          <span>${esc(a.name || `Arm ${i+1}`)}</span>
+          <span class="arm-count">${a.points.length} pts</span>
+        </button>
+      `).join('')}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn btn-secondary btn-sm" type="button" onclick="clearArmPoints(${S.activeArm})" ${pts.length?'':'disabled'}>Clear active arm</button>
+      <button class="btn btn-primary btn-sm" type="button" onclick="goStep(4)">Next: NAR & Export</button>
+    </div>
+  </div>
+
+  <div class="panel"><div class="panel-title">${arm.name||'Arm'} — ${pts.length} points</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:8px">Review the first traced coordinates below. The full trace remains visible on the figure with a bright overlay.</p>
+    ${pts.length?`<table class="preview-table"><tr><th>X</th><th>Y</th></tr>${previewRows}</table>`
+    :'<p style="color:var(--text2);font-size:11px">Draw on the curve.</p>'}
+  </div>`;
+}
+
+function renderNARExport(){
+  const tracedArmCount = S.arms.filter(a=>a.points.length).length;
+  return `
+  <div class="panel"><div class="panel-title">Study Summary</div>
+    <div style="display:grid;gap:8px">
+      <div style="padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:rgba(8,17,31,.32)">
+        <strong style="display:block;font-size:13px;margin-bottom:3px">${esc(S.study || 'Unnamed study')}</strong>
+        <span style="display:block;font-size:12px;line-height:1.45;color:var(--text2)">Population: ${esc(S.population || 'N/A')}</span>
+        <span style="display:block;font-size:12px;line-height:1.45;color:var(--text2)">Endpoint: ${esc(S.endpoint || 'N/A')}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text2)">Traced arms: ${tracedArmCount} / ${S.arms.length}</div>
+    </div>
+  </div>
+
+  <div class="panel"><div class="panel-title">Numbers At Risk</div>
+    <p style="font-size:12px;line-height:1.5;color:var(--text2);margin-bottom:10px">
+      NAR is optional. Add rows only if the paper reports numbers at risk for that arm.
+    </p>
+    <div style="display:grid;gap:12px">
+      ${S.arms.map((arm, ai)=>`
+        <div style="padding:12px;border:1px solid var(--border);border-radius:14px;background:rgba(8,17,31,.28)">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="arm-color" style="background:${arm.color}"></span>
+              <strong style="font-size:13px">${esc(arm.name || `Arm ${ai+1}`)}</strong>
+            </div>
+            <span style="font-size:11px;color:var(--text3)">${arm.points.length} traced points</span>
+          </div>
+          <table class="nar-table">
+            <tr><th>Time</th><th>N at Risk</th><th></th></tr>
+            ${(arm.nar||[]).map((row,ri)=>`
+              <tr>
+                <td><input type="number" step="any" value="${esc(row.time)}" oninput="updateNar(${ai}, ${ri}, 'time', this.value)"></td>
+                <td><input type="number" step="1" min="0" value="${esc(row.n)}" oninput="updateNar(${ai}, ${ri}, 'n', this.value)"></td>
+                <td><button class="btn btn-secondary btn-sm" type="button" onclick="removeNarRow(${ai}, ${ri})">Remove</button></td>
+              </tr>
+            `).join('')}
+            ${!(arm.nar||[]).length ? '<tr><td colspan="3" style="color:var(--text3)">No NAR rows added for this arm.</td></tr>' : ''}
+          </table>
+          <button class="btn btn-secondary btn-sm" type="button" style="margin-top:8px" onclick="addNarRow(${ai})">+ Add NAR row</button>
+        </div>
+      `).join('')}
+    </div>
+  </div>
+
+  <div class="panel"><div class="panel-title">Export</div>
+    <p style="font-size:11px;color:var(--text2);line-height:1.5;margin-bottom:8px">
+      ${tracedArmCount > 1
+        ? `Each traced arm will download as its own CSV + JSON pair.`
+        : `File prefix: <strong>${esc(makeFilename())}</strong>`}
+    </p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-secondary btn-sm" type="button" onclick="goStep(3)">Back to Trace</button>
+      <button class="btn btn-success" type="button" onclick="doExport()" ${tracedArmCount?'':'disabled'}>Download CSV + JSON</button>
+      <button class="btn btn-secondary btn-sm" type="button" onclick="copyCSV()" ${tracedArmCount?'':'disabled'}>Copy CSV</button>
+    </div>
+  </div>`;
+}
+
+/* ===== FILENAME ===== */
+function sanitize(s){ return String(s ?? '').replace(/[^a-zA-Z0-9]/g,''); }
+function getTracedArms(){
+  return S.arms.filter(a=>a.points.length>0);
+}
+
+function makeFilename(arm=null){
+  const armNames = arm
+    ? sanitize(arm.name)
+    : getTracedArms().map(a=>sanitize(a.name)).filter(Boolean).join('-');
+  const parts = [sanitize(S.study), sanitize(S.population), sanitize(S.endpoint), armNames].filter(Boolean);
+  return parts.join('_') || 'km_data';
+}
+
+function resetAll(){
+  if(!confirm('Reset everything? All traces and calibration will be lost.')) return;
+  clearTracingState();
+  goStep(S.image?1:1);
+  redrawMain();
+  redrawLoupe();
+}
+
+/* ===== TOOL ===== */
+function setTool(t){
+  S.tool=t;
+  if(S.pdfSelecting){
+    S.pdfSelecting=false;
+    S.pdfCropDraft=null;
+    S.pdfSelectionStart=null;
+    syncPdfControls();
+  }
+  document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active'));
+  const map={freehand:'btnPen',click:'btnClick',autotrace:'btnAuto',mask:'btnMask',eraser:'btnEraser',drag:'btnDrag'};
+  const b=document.getElementById(map[t]);if(b)b.classList.add('active');
+  syncCursorAppearance();
+  updateCanvasStatus();
+  redrawMain();
+  redrawLoupe();
+  renderSB();
+}
+
+/* ===== UNDO/REDO ===== */
+function snapshotEditableState(){
+  return JSON.parse(JSON.stringify({
+    arms:S.arms.map(a=>({id:a.id,points:a.points.slice()})),
+    imageMasks:S.imageMasks
+  }));
+}
+
+function restoreEditableState(state){
+  state.arms.forEach(s=>{
+    const a=S.arms.find(x=>x.id===s.id);
+    if(a) a.points=s.points;
+  });
+  S.imageMasks=state.imageMasks||[];
+}
+
+function pushUndo(){
+  S.undoStack.push(snapshotEditableState());
+  S.redoStack=[]; if(S.undoStack.length>50)S.undoStack.shift();
+}
+function undo(){
+  if(!S.undoStack.length)return;
+  S.redoStack.push(snapshotEditableState());
+  restoreEditableState(S.undoStack.pop());
+  renderSB();redrawMain();redrawLoupe();
+}
+function redo(){
+  if(!S.redoStack.length)return;
+  S.undoStack.push(snapshotEditableState());
+  restoreEditableState(S.redoStack.pop());
+  renderSB();redrawMain();redrawLoupe();
+}
+
+/* ===== MAIN CANVAS DRAWING ===== */
+function redrawMain(){
+  const ctx=mainCtx, w=mainC.width, h=mainC.height;
+  ctx.clearRect(0,0,w,h);
+  if(!S.image) return;
+
+  ctx.save();
+  ctx.translate(S.offX, S.offY);
+  ctx.scale(S.scale, S.scale);
+
+  // image
+  ctx.drawImage(S.image, 0, 0);
+  drawMaskStrokes(ctx);
+
+  // calibration marks
+  if(S.calX.pxA) drawMark(ctx,S.calX.pxA,'#ff4444','X₁');
+  if(S.calX.pxB) drawMark(ctx,S.calX.pxB,'#ff4444','X₂');
+  if(S.calY.pxA) drawMark(ctx,S.calY.pxA,'#4488ff','Y₁');
+  if(S.calY.pxB) drawMark(ctx,S.calY.pxB,'#4488ff','Y₂');
+
+  // arms
+  S.arms.forEach((arm,ai)=>{
+    if(!arm.points.length)return;
+    const active=ai===S.activeArm;
+    drawArmPath(ctx, arm, active, S.scale);
+    if(active) drawArmPoints(ctx, arm, S.scale, false);
+  });
+
+  drawPdfSelection(ctx);
+
+  // crosshair at mouse position
+  const meta = getCursorMeta();
+  ctx.setLineDash([10/S.scale,8/S.scale]);
+  ctx.strokeStyle='rgba(8,17,31,.95)';
+  ctx.lineWidth=3/S.scale;
+  ctx.beginPath();
+  ctx.moveTo(S.mouseImgX,0);ctx.lineTo(S.mouseImgX,S.imgH);
+  ctx.moveTo(0,S.mouseImgY);ctx.lineTo(S.imgW,S.mouseImgY);
+  ctx.stroke();
+  ctx.strokeStyle=hexToRgba(meta.color, .92);
+  ctx.lineWidth=1.2/S.scale;
+  ctx.beginPath();
+  ctx.moveTo(S.mouseImgX,0);ctx.lineTo(S.mouseImgX,S.imgH);
+  ctx.moveTo(0,S.mouseImgY);ctx.lineTo(S.imgW,S.mouseImgY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.restore();
+}
+
+function drawMark(ctx,pt,color,label){
+  const sz=10/S.scale;
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=1.5/S.scale;
+  ctx.beginPath();
+  ctx.moveTo(pt[0]-sz,pt[1]);ctx.lineTo(pt[0]+sz,pt[1]);
+  ctx.moveTo(pt[0],pt[1]-sz);ctx.lineTo(pt[0],pt[1]+sz);
+  ctx.stroke();
+  ctx.fillStyle=color;ctx.font=`bold ${11/S.scale}px sans-serif`;ctx.fillText(label,pt[0]+sz+2/S.scale,pt[1]-3/S.scale);
+  ctx.restore();
+}
+
+function drawArmPath(ctx, arm, active, zoomScale){
+  if(!arm.points.length) return;
+
+  if(active){
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,.98)';
+    ctx.lineWidth=6/zoomScale;
+    ctx.lineJoin='round';
+    ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.moveTo(arm.points[0][0], arm.points[0][1]);
+    for(let i=1;i<arm.points.length;i++) ctx.lineTo(arm.points[i][0], arm.points[i][1]);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Bright trace color (contrasts with original curve)
+  const traceColors = ['#00FF88','#00DDFF','#FFFF00','#FF44FF','#88FF00','#FF8800'];
+  const traceColor = traceColors[arm.id % traceColors.length];
+
+  // Black outline for contrast on any background
+  ctx.save();
+  ctx.strokeStyle='rgba(0,0,0,0.7)';
+  ctx.lineWidth=(active?5:3)/zoomScale;
+  ctx.lineJoin='round';
+  ctx.lineCap='round';
+  ctx.globalAlpha=active?1:0.45;
+  ctx.beginPath();
+  ctx.moveTo(arm.points[0][0], arm.points[0][1]);
+  for(let i=1;i<arm.points.length;i++) ctx.lineTo(arm.points[i][0], arm.points[i][1]);
+  ctx.stroke();
+  ctx.restore();
+
+  // Bright neon trace on top
+  ctx.save();
+  ctx.strokeStyle=traceColor;
+  ctx.lineWidth=(active?3:1.7)/zoomScale;
+  ctx.lineJoin='round';
+  ctx.lineCap='round';
+  ctx.globalAlpha=active?1:0.45;
+  ctx.beginPath();
+  ctx.moveTo(arm.points[0][0], arm.points[0][1]);
+  for(let i=1;i<arm.points.length;i++) ctx.lineTo(arm.points[i][0], arm.points[i][1]);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawArmPoints(ctx, arm, zoomScale, dense=false){
+  if(!arm.points.length) return;
+  const maxPoints = dense ? 220 : 650;
+  const step = arm.points.length > maxPoints ? Math.ceil(arm.points.length / maxPoints) : 1;
+  const r = (dense ? 2.3 : 3.1) / zoomScale;
+
+  for(let i=0;i<arm.points.length;i+=step){
+    const p=arm.points[i];
+    ctx.beginPath();
+    ctx.arc(p[0], p[1], r + 1.4/zoomScale, 0, Math.PI*2);
+    ctx.fillStyle='rgba(255,255,255,.98)';
+    ctx.fill();
+    const traceColors = ['#00FF88','#00DDFF','#FFFF00','#FF44FF','#88FF00','#FF8800'];
+    ctx.beginPath();
+    ctx.arc(p[0], p[1], r, 0, Math.PI*2);
+    ctx.fillStyle=traceColors[arm.id % traceColors.length];
+    ctx.fill();
+  }
+}
+
+function drawPdfSelection(ctx){
+  if(!S.pdfCropDraft || S.pdfCropDraft[2] < 4 || S.pdfCropDraft[3] < 4) return;
+  const [x,y,w,h]=S.pdfCropDraft;
+  ctx.save();
+  ctx.fillStyle='rgba(125,211,252,.14)';
+  ctx.strokeStyle='rgba(125,211,252,.95)';
+  ctx.lineWidth=2/S.scale;
+  ctx.setLineDash([8/S.scale,6/S.scale]);
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeRect(x, y, w, h);
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawMaskStrokes(ctx){
+  if(!S.imageMasks.length)return;
+  ctx.save();
+  ctx.strokeStyle='#ffffff';
+  ctx.fillStyle='#ffffff';
+  ctx.lineCap='round';
+  ctx.lineJoin='round';
+
+  S.imageMasks.forEach(stroke=>{
+    if(!stroke.points || !stroke.points.length)return;
+    ctx.lineWidth=Math.max(4, stroke.size||S.maskBrush);
+    if(stroke.points.length===1){
+      const p=stroke.points[0];
+      ctx.beginPath();
+      ctx.arc(p[0], p[1], ctx.lineWidth/2, 0, Math.PI*2);
+      ctx.fill();
+      return;
+    }
+    ctx.beginPath();
+    ctx.moveTo(stroke.points[0][0], stroke.points[0][1]);
+    for(let i=1;i<stroke.points.length;i++) ctx.lineTo(stroke.points[i][0], stroke.points[i][1]);
+    ctx.stroke();
+    const first=stroke.points[0], last=stroke.points[stroke.points.length-1];
+    ctx.beginPath();ctx.arc(first[0], first[1], ctx.lineWidth/2, 0, Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(last[0], last[1], ctx.lineWidth/2, 0, Math.PI*2);ctx.fill();
+  });
+
+  ctx.restore();
+}
+
+function buildWorkingCanvas(){
+  const tmpC=document.createElement('canvas');
+  tmpC.width=S.imgW;
+  tmpC.height=S.imgH;
+  const tmpX=tmpC.getContext('2d');
+  tmpX.drawImage(S.image,0,0);
+  drawMaskStrokes(tmpX);
+  return tmpC;
+}
+
+function sampleTracePoint(px, py){
+  const tmpC=buildWorkingCanvas();
+  const tmpX=tmpC.getContext('2d');
+  const cx=Math.round(px), cy=Math.round(py);
+  const radius=6;
+  const x0=Math.max(0, cx-radius);
+  const y0=Math.max(0, cy-radius);
+  const w=Math.min(tmpC.width-x0, radius*2+1);
+  const h=Math.min(tmpC.height-y0, radius*2+1);
+  const data=tmpX.getImageData(x0, y0, w, h).data;
+
+  let best=null;
+  let bestScore=-Infinity;
+  const picks=[];
+  for(let i=0;i<data.length;i+=4){
+    const r=data[i], g=data[i+1], b=data[i+2], a=data[i+3];
+    if(!a) continue;
+    const maxv=Math.max(r,g,b), minv=Math.min(r,g,b);
+    const idx=i/4;
+    const lx=idx % w, ly=Math.floor(idx / w);
+    const ix=x0+lx, iy=y0+ly;
+    const dx=ix-cx, dy=iy-cy;
+    const dist=Math.hypot(dx,dy);
+    const chroma=maxv-minv;
+    const darkness=255-((r+g+b)/3);
+    const prominence=darkness + chroma*1.7;
+
+    if(maxv < 247 || chroma > 8 || darkness > 18){
+      picks.push([r,g,b]);
+      const score = prominence - dist*22;
+      if(score > bestScore){
+        bestScore = score;
+        best = {color:[r,g,b], seed:[ix,iy]};
+      }
+    }
+  }
+
+  if(best) return best;
+
+  if(!picks.length){
+    const center=tmpX.getImageData(cx, cy, 1, 1).data;
+    return {color:[center[0], center[1], center[2]], seed:[cx,cy]};
+  }
+
+  const sum=picks.reduce((acc,p)=>{
+    acc[0]+=p[0]; acc[1]+=p[1]; acc[2]+=p[2];
+    return acc;
+  }, [0,0,0]);
+
+  return {color:sum.map(v=>Math.round(v / picks.length)), seed:[cx,cy]};
+}
+
+/* ===== LOUPE ===== */
+function redrawLoupe(){
+  const ctx=loupeCtx, w=loupeC.width, h=loupeC.height;
+  ctx.clearRect(0,0,w,h);
+  if(!S.image)return;
+
+  const z=S.loupeZoom;
+  // center loupe on mouse image position
+  const srcW=w/z, srcH=h/z;
+  const sx=S.mouseImgX-srcW/2, sy=S.mouseImgY-srcH/2;
+
+  ctx.save();
+  ctx.translate(-sx*z, -sy*z);
+  ctx.scale(z, z);
+
+  // image
+  ctx.drawImage(S.image, 0, 0);
+  drawMaskStrokes(ctx);
+
+  // calibration marks
+  if(S.calX.pxA) drawMarkLoupe(ctx,S.calX.pxA,'#ff4444','X₁',z);
+  if(S.calX.pxB) drawMarkLoupe(ctx,S.calX.pxB,'#ff4444','X₂',z);
+  if(S.calY.pxA) drawMarkLoupe(ctx,S.calY.pxA,'#4488ff','Y₁',z);
+  if(S.calY.pxB) drawMarkLoupe(ctx,S.calY.pxB,'#4488ff','Y₂',z);
+
+  // arms
+  S.arms.forEach((arm,ai)=>{
+    if(!arm.points.length)return;
+    const active=ai===S.activeArm;
+    drawArmPath(ctx, arm, active, z);
+    if(active) drawArmPoints(ctx, arm, z, true);
+  });
+
+  // crosshair
+  ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=0.5/z;
+  ctx.setLineDash([4/z,4/z]);
+  ctx.beginPath();
+  ctx.moveTo(S.mouseImgX,sy);ctx.lineTo(S.mouseImgX,sy+srcH);
+  ctx.moveTo(sx,S.mouseImgY);ctx.lineTo(sx+srcW,S.mouseImgY);
+  ctx.stroke();ctx.setLineDash([]);
+
+  ctx.restore();
+
+  const meta = getCursorMeta();
+
+  // screen-space guides
+  ctx.save();
+  ctx.strokeStyle='rgba(255,255,255,.1)';
+  ctx.lineWidth=1;
+  [0.25,0.5,0.75].forEach(r=>{
+    ctx.beginPath();
+    ctx.moveTo(w*r,0);ctx.lineTo(w*r,h);
+    ctx.moveTo(0,h*r);ctx.lineTo(w,h*r);
+    ctx.stroke();
+  });
+
+  ctx.strokeStyle='rgba(8,17,31,.92)';
+  ctx.lineWidth=4;
+  ctx.beginPath();
+  ctx.moveTo(w/2,0);ctx.lineTo(w/2,h);
+  ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);
+  ctx.stroke();
+
+  ctx.strokeStyle=hexToRgba(meta.color,.95);
+  ctx.lineWidth=1.5;
+  ctx.setLineDash([8,6]);
+  ctx.beginPath();
+  ctx.moveTo(w/2,0);ctx.lineTo(w/2,h);
+  ctx.moveTo(0,h/2);ctx.lineTo(w,h/2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.strokeStyle=hexToRgba(meta.color,.95);
+  ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(w/2,h/2,18,0,Math.PI*2);ctx.stroke();
+
+  ctx.fillStyle=meta.color;
+  ctx.beginPath();ctx.arc(w/2,h/2,4,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+
+function drawMarkLoupe(ctx,pt,color,label,z){
+  const sz=8/z;
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=1/z;
+  ctx.beginPath();
+  ctx.moveTo(pt[0]-sz,pt[1]);ctx.lineTo(pt[0]+sz,pt[1]);
+  ctx.moveTo(pt[0],pt[1]-sz);ctx.lineTo(pt[0],pt[1]+sz);
+  ctx.stroke();
+  ctx.fillStyle=color;ctx.font=`bold ${9/z}px sans-serif`;ctx.fillText(label,pt[0]+sz+1/z,pt[1]-2/z);
+  ctx.restore();
+}
+
+function loupeZoom(dir){
+  S.loupeZoom=Math.max(2,Math.min(15,S.loupeZoom+dir));
+  document.getElementById('loupeLabel').textContent=`${S.loupeZoom}× zoom`;
+  redrawLoupe();
+}
+
+function startMaskStroke(px, py){
+  S.imageMasks.push({size:S.maskBrush, points:[[px,py]]});
+}
+
+function extendMaskStroke(px, py){
+  const stroke=S.imageMasks[S.imageMasks.length-1];
+  if(!stroke)return;
+  stroke.points.push([px,py]);
+}
+
+function finishPdfSelection(){
+  if(!S.pdfSelectionStart) return;
+  const [x0,y0]=S.pdfSelectionStart;
+  const rect=normalizeRect(x0, y0, S.mouseImgX, S.mouseImgY);
+  S.pdfCropDraft = (rect[2] >= 12 && rect[3] >= 12) ? rect : null;
+  S.pdfSelectionStart = null;
+  S.drawing = false;
+  syncPdfControls();
+  redrawMain();
+  redrawLoupe();
+}
+
+/* ===== MOUSE EVENTS ===== */
+mainC.addEventListener('mousedown',e=>{
+  const rect=areaEl.getBoundingClientRect();
+  const sx=e.clientX-rect.left, sy=e.clientY-rect.top;
+  const [px,py]=screen2img(sx,sy);
+  moveCursor(sx, sy);
+  setCursorVisible(true);
+
+  if(S.pdfSelecting){
+    S.pdfSelectionStart=[px,py];
+    S.pdfCropDraft=null;
+    S.drawing=true;
+    redrawMain();
+    return;
+  }
+
+  // calibration
+  if(S.step===1){
+    if(!S.calX.pxA){S.calX.pxA=[px,py];}else if(!S.calX.pxB){S.calX.pxB=[px,py];}
+    renderSB();redrawMain();return;
+  }
+  if(S.step===2){
+    if(!S.calY.pxA){S.calY.pxA=[px,py];}else if(!S.calY.pxB){S.calY.pxB=[px,py];}
+    renderSB();redrawMain();return;
+  }
+  if(S.step!==3)return;
+
+  if(S.tool==='mask'){
+    pushUndo();S.drawing=true;startMaskStroke(px,py);redrawMain();redrawLoupe();
+    return;
+  }
+
+  const arm=S.arms[S.activeArm];
+  if(!arm)return;
+  if(S.tool==='freehand'){
+    pushUndo();S.drawing=true;arm.points.push([px,py]);redrawMain();
+  }else if(S.tool==='click'){
+    pushUndo();arm.points.push([px,py]);arm.points.sort((a,b)=>a[0]-b[0]);renderSB();redrawMain();
+  }else if(S.tool==='autotrace'){
+    doAutoTrace(px,py);
+  }else if(S.tool==='eraser'){
+    pushUndo();eraseNear(px,py);
+  }else if(S.tool==='drag'){
+    const idx=findNearest(arm,px,py);
+    if(idx>=0){pushUndo();S.dragIdx=idx;S.drawing=true;}
+  }
+});
+
+mainC.addEventListener('mousemove',e=>{
+  const rect=areaEl.getBoundingClientRect();
+  const sx=e.clientX-rect.left, sy=e.clientY-rect.top;
+  const [px,py]=screen2img(sx,sy);
+  S.mouseImgX=px; S.mouseImgY=py;
+  moveCursor(sx, sy);
+  setCursorVisible(true);
+
+  updateCoord(px,py);
+  redrawLoupe();
+
+  if(S.pdfSelecting && S.pdfSelectionStart){
+    S.pdfCropDraft=normalizeRect(S.pdfSelectionStart[0], S.pdfSelectionStart[1], px, py);
+    redrawMain();
+    return;
+  }
+
+  if(S.step===3&&S.drawing){
+    if(S.tool==='mask'){extendMaskStroke(px,py);redrawMain();redrawLoupe();}
+    else{
+      const arm=S.arms[S.activeArm];
+      if(arm&&S.tool==='freehand'){arm.points.push([px,py]);redrawMain();}
+      else if(arm&&S.tool==='drag'&&S.dragIdx>=0){arm.points[S.dragIdx]=[px,py];redrawMain();}
+    }
+  }
+  if(S.step===3&&S.tool==='eraser'&&e.buttons===1) eraseNear(px,py);
+
+  // redraw crosshair on main
+  redrawMain();
+});
+
+mainC.addEventListener('mouseenter',()=>{
+  syncCursorAppearance();
+  setCursorVisible(true);
+});
+
+mainC.addEventListener('mouseleave',()=>{
+  setCursorVisible(false);
+});
+
+function finishPointerInteraction(){
+  if(S.pdfSelecting && S.pdfSelectionStart){
+    finishPdfSelection();
+    syncCursorAppearance();
+    updateCanvasStatus();
+    return;
+  }
+  if(S.drawing&&S.tool==='freehand'){
+    const arm=S.arms[S.activeArm];
+    arm.points.sort((a,b)=>a[0]-b[0]);
+    arm.points=simplifyDP(arm.points,1.5);
+    renderSB();redrawMain();
+  }else if(S.drawing&&S.tool==='mask'){
+    renderSB();
+  }
+  S.drawing=false;S.dragIdx=-1;
+  syncCursorAppearance();
+}
+
+mainC.addEventListener('mouseup',finishPointerInteraction);
+window.addEventListener('mouseup',finishPointerInteraction);
+
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+  if((e.metaKey||e.ctrlKey)&&e.shiftKey&&e.key==='z'){redo();e.preventDefault();}
+  else if((e.metaKey||e.ctrlKey)&&e.key==='z'){undo();e.preventDefault();}
+  else if(e.key==='f')setTool('freehand');
+  else if(e.key==='c')setTool('click');
+  else if(e.key==='a')setTool('autotrace');
+  else if(e.key==='m')setTool('mask');
+  else if(e.key==='e')setTool('eraser');
+  else if(e.key==='d')setTool('drag');
+});
+
+// scroll on loupe to change loupe zoom
+loupeC.addEventListener('wheel',e=>{e.preventDefault();loupeZoom(e.deltaY<0?1:-1);},{passive:false});
+// scroll on main canvas also adjusts loupe zoom
+mainC.addEventListener('wheel',e=>{e.preventDefault();loupeZoom(e.deltaY<0?1:-1);},{passive:false});
+
+/* ===== HELPERS ===== */
+function eraseNear(px,py){
+  const arm=S.arms[S.activeArm],th=6/S.scale;
+  const before=arm.points.length;
+  arm.points=arm.points.filter(p=>Math.hypot(p[0]-px,p[1]-py)>th);
+  if(arm.points.length!==before){redrawMain();renderSB();}
+}
+function findNearest(arm,px,py){
+  let md=10/S.scale,idx=-1;
+  arm.points.forEach((p,i)=>{const d=Math.hypot(p[0]-px,p[1]-py);if(d<md){md=d;idx=i;}});
+  return idx;
+}
+
+function simplifyDP(pts,eps){
+  if(pts.length<3)return pts;
+  function perpDist(p,a,b){
+    const dx=b[0]-a[0],dy=b[1]-a[1],len2=dx*dx+dy*dy;
+    if(len2===0)return Math.hypot(p[0]-a[0],p[1]-a[1]);
+    const t=Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/len2));
+    return Math.hypot(p[0]-(a[0]+t*dx),p[1]-(a[1]+t*dy));
+  }
+  function rdp(pts,e){
+    let mx=0,mi=0;
+    for(let i=1;i<pts.length-1;i++){const d=perpDist(pts[i],pts[0],pts[pts.length-1]);if(d>mx){mx=d;mi=i;}}
+    if(mx>e){const l=rdp(pts.slice(0,mi+1),e),r=rdp(pts.slice(mi),e);return l.slice(0,-1).concat(r);}
+    return[pts[0],pts[pts.length-1]];
+  }
+  return rdp(pts,eps);
+}
+
+function updateCoord(px,py){
+  document.getElementById('coordPixel').textContent=`px: ${Math.round(px)}, ${Math.round(py)}`;
+  const d=px2data(px,py);
+  if(d){
+    document.getElementById('coordData').textContent=`x: ${d[0].toFixed(3)}  y: ${d[1].toFixed(3)}`;
+    loupeCoordsEl.textContent=`Pixel ${Math.round(px)}, ${Math.round(py)}  Data ${d[0].toFixed(3)}, ${d[1].toFixed(3)}`;
+  }else{
+    document.getElementById('coordData').textContent='x: —  y: —';
+    loupeCoordsEl.textContent=`Pixel ${Math.round(px)}, ${Math.round(py)}  Data unavailable until both axes are calibrated.`;
+  }
+}
+
+/* ===== AUTO-TRACE (client-side) ===== */
+function _jsColorMatch(r,g,b,tr,tg,tb,tol){
+  // Simple RGB distance check
+  return Math.abs(r-tr)+Math.abs(g-tg)+Math.abs(b-tb) < tol*3;
+}
+
+function _jsAutoTrace(imgCanvas, seedX, seedY, color, tolerance, xStart, xEnd){
+  const ctx=imgCanvas.getContext('2d');
+  const w=imgCanvas.width, h=imgCanvas.height;
+  const data=ctx.getImageData(0,0,w,h).data;
+  const [tr,tg,tb]=color;
+
+  // Build binary mask
+  const mask=new Uint8Array(w*h);
+  for(let i=0;i<data.length;i+=4){
+    if(_jsColorMatch(data[i],data[i+1],data[i+2],tr,tg,tb,tolerance))
+      mask[i/4]=1;
+  }
+
+  // Find seed on mask
+  const sx=Math.round(seedX), sy=Math.round(seedY);
+  let seedFound=null;
+  for(let r=0;r<12;r++){
+    for(let dx=-r;dx<=r;dx++){
+      for(let dy=-r;dy<=r;dy++){
+        const nx=sx+dx,ny=sy+dy;
+        if(nx>=0&&nx<w&&ny>=0&&ny<h&&mask[ny*w+nx]){
+          if(!seedFound||Math.abs(dx)+Math.abs(dy)<Math.abs(seedFound[0]-sx)+Math.abs(seedFound[1]-sy))
+            seedFound=[nx,ny];
+        }
+      }
+    }
+    if(seedFound) break;
+  }
+  if(!seedFound) return [];
+
+  // Nearest y in column
+  function nearestY(x,refY){
+    let best=null,bd=999;
+    for(let y=Math.max(0,refY-40);y<Math.min(h,refY+40);y++){
+      if(mask[y*w+x]){const d=Math.abs(y-refY);if(d<bd){bd=d;best=y;}}
+    }
+    return best;
+  }
+
+  // Follow curve in one direction
+  function follow(startX,startY,dir){
+    const pts=[];
+    let prevY=startY, x=startX+dir;
+    while(x>=xStart&&x<xEnd){
+      const y=nearestY(x,prevY);
+      if(y!==null&&Math.abs(y-prevY)<=35){pts.push([x,y]);prevY=y;x+=dir;continue;}
+      // gap search
+      let found=null;
+      for(let g=1;g<=50;g++){
+        const nx=x+dir*g;
+        if(nx<xStart||nx>=xEnd)break;
+        const ny=nearestY(nx,prevY);
+        if(ny!==null&&Math.abs(ny-prevY)<=35+g*2){found=[nx,ny];break;}
+      }
+      if(!found)break;
+      pts.push(found);prevY=found[1];x=found[0]+dir;
+    }
+    return pts;
+  }
+
+  const left=follow(seedFound[0],seedFound[1],-1);
+  const right=follow(seedFound[0],seedFound[1],1);
+  const all=[...left.reverse(), seedFound, ...right];
+
+  // Douglas-Peucker
+  function dp(pts,eps){
+    if(pts.length<3)return pts;
+    function pd(p,a,b){const dx=b[0]-a[0],dy=b[1]-a[1],l2=dx*dx+dy*dy;if(!l2)return Math.hypot(p[0]-a[0],p[1]-a[1]);const t=Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/l2));return Math.hypot(p[0]-(a[0]+t*dx),p[1]-(a[1]+t*dy));}
+    let mx=0,mi=0;
+    for(let i=1;i<pts.length-1;i++){const d=pd(pts[i],pts[0],pts[pts.length-1]);if(d>mx){mx=d;mi=i;}}
+    if(mx>eps){const l=dp(pts.slice(0,mi+1),eps),r=dp(pts.slice(mi),eps);return l.slice(0,-1).concat(r);}
+    return[pts[0],pts[pts.length-1]];
+  }
+
+  return dp(all, 2.0);
+}
+
+async function doAutoTrace(px,py){
+  if(!S.image)return;
+  const picked=sampleTracePoint(px, py);
+
+  let xStart=0, xEnd=S.imgW;
+  if(S.calX.pxA&&S.calX.pxB){
+    xStart=Math.max(0,Math.floor(Math.min(S.calX.pxA[0],S.calX.pxB[0]))-10);
+    xEnd=Math.min(S.imgW,Math.ceil(Math.max(S.calX.pxA[0],S.calX.pxB[0]))+10);
+  }
+
+  // Build working canvas with image
+  const tmpC=buildWorkingCanvas();
+
+  const points=_jsAutoTrace(tmpC, px, py, picked.color, S.autoTol, xStart, xEnd);
+  if(!points.length){
+    // Retry with wider tolerance
+    const points2=_jsAutoTrace(tmpC, px, py, picked.color, Math.min(80,S.autoTol+15), xStart, xEnd);
+    if(!points2.length){alert('Auto-trace could not find the curve. Click closer to the line or increase tolerance.');return;}
+    pushUndo();
+    S.arms[S.activeArm].points=points2;
+  } else {
+    pushUndo();
+    S.arms[S.activeArm].points=points;
+  }
+  S.arms[S.activeArm].points.sort((a,b)=>a[0]-b[0]);
+  renderSB();redrawMain();
+}
+
+/* ===== EXPORT ===== */
+function buildCSV(arm=null){
+  const exportArms = arm ? [arm] : getTracedArms();
+  let csv=`# study: ${S.study} | population: ${S.population} | endpoint: ${S.endpoint}\n`;
+  csv+='arm,x,y\n';
+  exportArms.forEach(currentArm=>{
+    if(!currentArm.points.length)return;
+    const sorted=[...currentArm.points].sort((a,b)=>a[0]-b[0]);
+    sorted.forEach(p=>{
+      const d=px2data(p[0],p[1]);
+      if(d) csv+=`${currentArm.name||'Arm'},${d[0].toFixed(6)},${d[1].toFixed(6)}\n`;
+    });
+  });
+  return csv;
+}
+
+function buildJSON(arm=null){
+  const exportArms = arm ? [arm] : getTracedArms();
+  const fname=makeFilename(arm);
+  const obj={
+    study: S.study,
+    population: S.population,
+    endpoint: S.endpoint,
+    csv_file: fname+'.csv',
+    calibration:{
+      x:{pointA:S.calX.vA, pointB:S.calX.vB},
+      y:{pointA:S.calY.vA, pointB:S.calY.vB}
+    },
+    arms: exportArms.map(currentArm=>{
+      const sorted=[...currentArm.points].sort((a,b)=>a[0]-b[0]);
+      const coords=sorted.map(p=>{const d=px2data(p[0],p[1]);return d?{x:+d[0].toFixed(6),y:+d[1].toFixed(6)}:null;}).filter(Boolean);
+      const out={name:currentArm.name, n_points:coords.length, coordinates:coords};
+      if(currentArm.nar&&currentArm.nar.length&&currentArm.nar.some(r=>r.n!=='')){
+        out.nar=currentArm.nar
+          .filter(r=>r.n!=='')
+          .map(r=>({time:Number(r.time),n:Number(r.n)}))
+          .filter(r=>Number.isFinite(r.time) && Number.isFinite(r.n));
+      }
+      return out;
+    })
+  };
+  return JSON.stringify(obj, null, 2);
+}
+
+function doExport(){
+  const tracedArms = getTracedArms();
+  if(!tracedArms.length) return;
+
+  tracedArms.forEach(arm=>{
+    const fname=makeFilename(arm);
+    dl(buildCSV(arm),'text/csv',fname+'.csv');
+    dl(buildJSON(arm),'application/json',fname+'.json');
+  });
+}
+
+function dl(content,mime,name){
+  const blob=new Blob([content],{type:mime});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=name;
+  a.style.display='none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 1000);
+}
+
+function copyCSV(){
+  const arm = S.arms[S.activeArm]?.points.length ? S.arms[S.activeArm] : null;
+  navigator.clipboard.writeText(buildCSV(arm)).then(()=>{
+    alert(arm ? `Copied ${arm.name} CSV.` : 'Copied CSV.');
+  }).catch(()=>alert('Copy failed'));
+}
+
+/* ===== INIT ===== */
+renderStepButtons();
+syncPdfControls();
+resizeMain();
+resizeLoupe();
+renderSB();
+updateWorkspaceVisibility();
+updateCanvasStatus();
+syncCursorAppearance();
+document.getElementById('btnPen')?.classList.add('active');
+</script>
+</body>
+</html>
