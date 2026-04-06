@@ -1,5 +1,7 @@
 # KMR — Kaplan-Meier Curve Reconstructor
 
+**[Live Demo App](https://ihtanboga.github.io/KMR/)**
+
 A web-based tool for digitizing Kaplan-Meier survival curves from published figures. Upload an image (PNG/JPG) or PDF, calibrate the axes, trace the curves — manually or with auto-trace — and export precise (x, y) coordinates as CSV and JSON.
 
 Built for clinical researchers who need to extract individual patient data from published KM plots for meta-analysis, validation, or reanalysis (Guyot et al. 2012 workflow).
